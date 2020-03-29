@@ -53,7 +53,7 @@ library("sp")
 library("raster")
 library("SDraw")
 
-crowns2019=readOGR(dsn=".","orchard_crowns_2019") #segmented layer
+crowns2019=readOGR(dsn=".","crowns2topoly") #segmented layer
 plot(crowns2019)
 
 crowns2019$crown_ID<-c(1:nrow(crowns2019)) 
@@ -62,10 +62,10 @@ coverxy=gCentroid(crowns2019,byid=T) #centroid of crowns
 crowns2019@data<-cbind(crowns2019@data,coverxy@coords)
 
 #load points in of plants
-plantpts0<-readOGR(".","orchard_points_utm")
+plantpts0<-readOGR(".","orchard_survival_IDTM_adjusted")
 
-plantpts<-plantpts0[which(plantpts$Status_QC=="Living"),] #subset to living plants
-plot(plantpts)
+plantpts<-plantpts0[which(plantpts0$Status_QC=="Living"),] #subset to living plants
+#where does this living come from (field data vs. other data)?
 
 #spatial overlay of points and crowns
 crown_contain=over(crowns2019,plantpts,returnList=T)
@@ -79,6 +79,23 @@ ori_crowns=rownames(crown_dat) #rownames are crown ids
 row_crown_ID=splt(ori_crowns,".",1) #adding a column representing crown ID
 
 crown_dat$row_crown_ID=as.numeric(row_crown_ID)
+
+#####################################################
+##ACCURACY METRICS FOR SEGMENTATION:
+##ACCURACY METRICS FOR SEGMENTATION:
+#####################################################
+#####################################################
+#####################################################
+
+#living plants that should have been detected
+#living plants that should have been detected
+length(which(plantpts$Tag %in% crown_dat$Tag ==F))/length(plantpts$Tag)
+
+#how many crowns there should have been (tricky, since there are recruits)
+nrow(crowns2019) 
+nrow(plantpts)
+
+
 
 crown_splt=splt(ori_crowns,".",2) #which ones share a crown?
 
@@ -136,5 +153,6 @@ sp_single@data<-sp_single@data[,order(colnames(sp_single@data))]
 sp_shared@data<-sp_shared@data[,order(colnames(sp_shared@data))]
 
 final_full=rbind(sp_single,sp_shared)
-plot(final_full)
-writeOGR(final_full,dsn=".",layer="first_draft_merged_segmented",driver="ESRI Shapefile",overwrite=T)
+
+writeOGR(final_full,dsn=".",layer="final_merged_segmented",driver="ESRI Shapefile",
+         overwrite=T)

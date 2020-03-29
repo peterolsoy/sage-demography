@@ -64,7 +64,8 @@ crowns2019@data<-cbind(crowns2019@data,coverxy@coords)
 #load points in of plants
 plantpts0<-readOGR(".","orchard_points_utm")
 
-plantpts<-plantpts0[which(plantpts0$smm2019==1),] #subset to living plants
+plantpts<-plantpts0[which(plantpts0$Status_QC=="Living"),] #subset to living plants
+#where does this living come from (field data vs. other data)?
 
 #spatial overlay of points and crowns
 crown_contain=over(crowns2019,plantpts,returnList=T)
@@ -78,6 +79,23 @@ ori_crowns=rownames(crown_dat) #rownames are crown ids
 row_crown_ID=splt(ori_crowns,".",1) #adding a column representing crown ID
 
 crown_dat$row_crown_ID=as.numeric(row_crown_ID)
+
+#####################################################
+##ACCURACY METRICS FOR SEGMENTATION:
+##ACCURACY METRICS FOR SEGMENTATION:
+#####################################################
+#####################################################
+#####################################################
+
+#living plants that should have been detected
+#living plants that should have been detected
+length(which(plantpts$Tag %in% crown_dat$Tag ==F))/length(plantpts$Tag)
+
+#how many crowns there should have been (tricky, since there are recruits)
+nrow(crowns2019) 
+nrow(plantpts)
+
+
 
 crown_splt=splt(ori_crowns,".",2) #which ones share a crown?
 
