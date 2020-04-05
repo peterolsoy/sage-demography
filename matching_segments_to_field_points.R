@@ -52,6 +52,71 @@ library("rgeos")
 library("sp")
 library("raster")
 library("SDraw")
+library("ForestTools")
+
+## load DEM
+dsm <- raster(x = "data/Orchard_IdahoTM_DEM_clip.tif") #2019 DEM data
+#dsm <- raster(x = "data/orchard2015_dem_IDTM_clip.tif") #2015 DEM data
+
+plot(dsm)
+
+groundPoly <- readOGR(dsn="data", layer="orchard_ground_poly")
+plot(groundPoly, add=TRUE)
+
+crop <- crop(dsm, groundPoly)
+dsm.ground <- mask(crop, groundPoly)
+plot(dsm.ground)
+
+#the slope/trend is much worse for 2015, need to remove that before moving forward
+dsm.ground.df <- as.data.frame(dsm.ground, na.rm=TRUE, xy=TRUE) #convert raster to dataframe
+names(dsm.ground.df)[3] <- "z"
+#trend <- lm(orchard2015_dem_IDTM_clip ~ x + y, data=dsm.df) #model XY trend
+trend <- lm(z ~ x + y, data=dsm.ground.df) #model XY trend
+summary(trend)
+
+dsm.df <- as.data.frame(dsm, na.rm=TRUE, xy=TRUE)
+names(dsm.df)[3] <- "z"
+
+dsm.df$z2 <- dsm.df$z - predict.lm(trend, newdata=dsm.df)
+
+#dsm.df[!(is.na(dsm.df[,3])),3] <- trend$residuals
+dsm2 <- rasterFromXYZ(dsm.df[,c(1,2,4)], crs=crs(dsm))
+plot(dsm2)
+
+lin <- function(x){x * 0.54 - 0.0044} #function for relating max crown height to radius
+
+#search for crowns or "treetops" throughout the image, this step takes the longest 
+ttops <- vwf(CHM = dsm2, winFun = lin, minHeight = 0.6, maxWinDiameter = NULL) #minHeight is the parameter to pick out crowns, higher will make fewer crowns
+
+plot(dsm2 > 0.2, xlab = "", ylab = "", xaxt='n', yaxt = 'n')
+plot(ttops, col = "blue", pch = 20, cex = 0.5, add = TRUE)
+
+mean(ttops$height)
+
+crowns <- mcws(treetops = ttops, CHM = dsm2, minHeight = 0.2, verbose = FALSE) #minHeight here will change which pixels are picked up as shrub, a higher number means smaller polygons around each crown/ttop
+plot(crowns, col = sample(rainbow(50), length(unique(crowns[])), replace = TRUE), legend = FALSE, xlab = "", ylab = "", xaxt='n', yaxt = 'n')
+
+#crownsPoly <- mcws(treetops = ttops, CHM = dsm2, format = "polygons", minHeight = 0.2, verbose = FALSE)
+# there's an error with the packages "format="polygons"" algorithm, it doesn't correctly convert
+# therefore, trying the rasterToPolygon function
+crownsPoly <- rasterToPolygons(crowns, dissolve=TRUE) #note that some crowns are multi-part
+
+plot(dsm2, xlab = "", ylab = "", xaxt='n', yaxt = 'n')
+plot(crownsPoly, border = "blue", lwd = 0.5, add = TRUE)
+
+d <- disaggregate(crownsPoly)
+d2 <- d[area(d)>0.25,]
+plot(d2)
+
+d2[["crownArea"]] <- gArea(d2, byid = TRUE) #calculate area of crowns, even if multi-part
+
+d2[["crownDiameter"]] <- sqrt(d2[["crownArea"]] / pi) * 2 #estimate diameter from area
+mean(d2$crownDiameter)
+
+#save polygon shapefile of segmented crowns
+writeOGR(obj=d2, dsn="tempdir", layer="crowns_2019", drive="ESRI Shapefile", overwrite=TRUE)
+
+### End Peter's code ###
 
 crowns2019=readOGR(dsn=".","crowns2topoly") #segmented layer
 plot(crowns2019)
@@ -117,18 +182,18 @@ shared_points<-merge(shared_points0,sc_merge,by.x="Tag",by.y="Tag")
 crown1=crowns2019[which(crowns2019$crown_ID==shared_crowns$row_crown_ID[2]),]
 
 pt<-function(xx){
-crown1=crowns2019[which(crowns2019$crown_ID==shared_crowns$row_crown_ID[xx]),]
-plot(crown1)}
+  crown1=crowns2019[which(crowns2019$crown_ID==shared_crowns$row_crown_ID[xx]),]
+  plot(crown1)}
 
 uni_crowns=unique(shared_crowns$row_crown_ID)
 
 crown_list=vector("list",length=length(uni_crowns))
 
 for(j in 1:length(crown_list)){
-#loop through with voronoi.polygons
-crown_list[[j]]=caughlin_polygons(x=shared_points[which(shared_points$row_crown_ID==uni_crowns[j]),],
-                 bounding.polygon=crowns2019[which(crowns2019$crown_ID==uni_crowns[j]),])
-
+  #loop through with voronoi.polygons
+  crown_list[[j]]=caughlin_polygons(x=shared_points[which(shared_points$row_crown_ID==uni_crowns[j]),],
+                                    bounding.polygon=crowns2019[which(crowns2019$crown_ID==uni_crowns[j]),])
+  
 }
 
 
