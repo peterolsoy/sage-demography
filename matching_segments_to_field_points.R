@@ -51,12 +51,11 @@ library("rgdal")
 library("rgeos")
 library("sp")
 library("raster")
-library("SDraw")
 library("ForestTools")
 
 ## load DEM
-dsm <- raster(x = "data/Orchard_IdahoTM_DEM_clip.tif") #2019 DEM data
-#dsm <- raster(x = "data/orchard2015_dem_IDTM_clip.tif") #2015 DEM data
+#dsm <- raster(x = "data/Orchard_IdahoTM_DEM_clip.tif") #2019 DEM data
+dsm <- raster(x = "data/orchard2015_dem_IDTM_clip.tif") #2015 DEM data
 
 plot(dsm)
 
@@ -83,6 +82,7 @@ dsm.df$z2 <- dsm.df$z - predict.lm(trend, newdata=dsm.df)
 dsm2 <- rasterFromXYZ(dsm.df[,c(1,2,4)], crs=crs(dsm))
 plot(dsm2)
 
+#allometric function - improve with data from Andrii
 lin <- function(x){x * 0.54 - 0.0044} #function for relating max crown height to radius
 
 #search for crowns or "treetops" throughout the image, this step takes the longest 
@@ -105,7 +105,7 @@ plot(dsm2, xlab = "", ylab = "", xaxt='n', yaxt = 'n')
 plot(crownsPoly, border = "blue", lwd = 0.5, add = TRUE)
 
 d <- disaggregate(crownsPoly)
-d2 <- d[area(d)>0.25,]
+d2 <- d[area(d)>0.25,] #used 0.25 before
 plot(d2)
 
 d2[["crownArea"]] <- gArea(d2, byid = TRUE) #calculate area of crowns, even if multi-part
@@ -114,11 +114,12 @@ d2[["crownDiameter"]] <- sqrt(d2[["crownArea"]] / pi) * 2 #estimate diameter fro
 mean(d2$crownDiameter)
 
 #save polygon shapefile of segmented crowns
-writeOGR(obj=d2, dsn="tempdir", layer="crowns_2019", drive="ESRI Shapefile", overwrite=TRUE)
+#writeOGR(obj=d2, dsn="tempdir", layer="crowns_2019", drive="ESRI Shapefile", overwrite=TRUE)
 
 ### End Peter's code ###
 
-crowns2019=readOGR(dsn=".","crowns2topoly") #segmented layer
+#crowns2019=readOGR(dsn=".","crowns2topoly") #segmented layer
+crowns2019 <- d2
 plot(crowns2019)
 
 crowns2019$crown_ID<-c(1:nrow(crowns2019)) 
@@ -129,7 +130,7 @@ crowns2019@data<-cbind(crowns2019@data,coverxy@coords)
 #load points in of plants
 plantpts0<-readOGR(".","orchard_survival_IDTM_adjusted")
 
-plantpts<-plantpts0[which(plantpts0$Status_QC=="Living"),] #subset to living plants
+plantpts<-plantpts0[which(plantpts0$Status_QC=="Living" | plantpts0$Status_QC=="Recent"),] #subset to living plants
 #where does this living come from (field data vs. other data)?
 
 #spatial overlay of points and crowns
@@ -161,7 +162,7 @@ nrow(crowns2019)
 nrow(plantpts)
 
 
-
+library("deldir")
 crown_splt=splt(ori_crowns,".",2) #which ones share a crown?
 
 crown_sharers=which(is.na(crown_splt)==F) #points in the same crown
@@ -217,7 +218,9 @@ sp_single@data<-sp_single@data[,c(1,4:27)]
 sp_single@data<-sp_single@data[,order(colnames(sp_single@data))]
 sp_shared@data<-sp_shared@data[,order(colnames(sp_shared@data))]
 
-final_full=rbind(sp_single,sp_shared)
+final_full=rbind(sp_single[,c(1,2,4:ncol(sp_single))],sp_shared[,c(2:ncol(sp_shared))])
+plot(final_full)
+plot(plantpts, add=TRUE)
 
 writeOGR(final_full,dsn=".",layer="final_merged_segmented",driver="ESRI Shapefile",
          overwrite=T)
