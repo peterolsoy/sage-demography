@@ -83,7 +83,8 @@ dsm2 <- rasterFromXYZ(dsm.df[,c(1,2,4)], crs=crs(dsm))
 plot(dsm2)
 
 #allometric function - improve with data from Andrii
-lin <- function(x){x * 0.54 - 0.0044} #function for relating max crown height to radius
+#lin <- function(x){x * 0.54 - 0.0044} #function for relating max crown height to radius
+lin <- function(x){x * 0.66868 - 0.15326} #from lm() of field data for sagebrush > 0.4 m tall
 
 #search for crowns or "treetops" throughout the image, this step takes the longest 
 ttops <- vwf(CHM = dsm2, winFun = lin, minHeight = 0.6, maxWinDiameter = NULL) #minHeight is the parameter to pick out crowns, higher will make fewer crowns
@@ -93,7 +94,7 @@ plot(ttops, col = "blue", pch = 20, cex = 0.5, add = TRUE)
 
 mean(ttops$height)
 
-crowns <- mcws(treetops = ttops, CHM = dsm2, minHeight = 0.2, verbose = FALSE) #minHeight here will change which pixels are picked up as shrub, a higher number means smaller polygons around each crown/ttop
+crowns <- mcws(treetops = ttops, CHM = dsm2, minHeight = 0.1, verbose = FALSE) #minHeight here will change which pixels are picked up as shrub, a higher number means smaller polygons around each crown/ttop
 plot(crowns, col = sample(rainbow(50), length(unique(crowns[])), replace = TRUE), legend = FALSE, xlab = "", ylab = "", xaxt='n', yaxt = 'n')
 
 #crownsPoly <- mcws(treetops = ttops, CHM = dsm2, format = "polygons", minHeight = 0.2, verbose = FALSE)
@@ -104,14 +105,14 @@ crownsPoly <- rasterToPolygons(crowns, dissolve=TRUE) #note that some crowns are
 plot(dsm2, xlab = "", ylab = "", xaxt='n', yaxt = 'n')
 plot(crownsPoly, border = "blue", lwd = 0.5, add = TRUE)
 
-d <- disaggregate(crownsPoly)
-d2 <- d[area(d)>0.25,] #used 0.25 before
-plot(d2)
-
-d2[["crownArea"]] <- gArea(d2, byid = TRUE) #calculate area of crowns, even if multi-part
-
-d2[["crownDiameter"]] <- sqrt(d2[["crownArea"]] / pi) * 2 #estimate diameter from area
-mean(d2$crownDiameter)
+# d <- disaggregate(crownsPoly)
+# d2 <- d[area(d)>0.25,] #used 0.25 before
+# plot(d2)
+# 
+# d2[["crownArea"]] <- gArea(d2, byid = TRUE) #calculate area of crowns, even if multi-part
+# 
+# d2[["crownDiameter"]] <- sqrt(d2[["crownArea"]] / pi) * 2 #estimate diameter from area
+# mean(d2$crownDiameter)
 
 #save polygon shapefile of segmented crowns
 #writeOGR(obj=d2, dsn="tempdir", layer="crowns_2019", drive="ESRI Shapefile", overwrite=TRUE)
@@ -119,7 +120,7 @@ mean(d2$crownDiameter)
 ### End Peter's code ###
 
 #crowns2019=readOGR(dsn=".","crowns2topoly") #segmented layer
-crowns2019 <- d2
+crowns2019 <- crownsPoly
 plot(crowns2019)
 
 crowns2019$crown_ID<-c(1:nrow(crowns2019)) 
@@ -130,7 +131,8 @@ crowns2019@data<-cbind(crowns2019@data,coverxy@coords)
 #load points in of plants
 plantpts0<-readOGR(".","orchard_survival_IDTM_adjusted")
 
-plantpts<-plantpts0[which(plantpts0$Status_QC=="Living" | plantpts0$Status_QC=="Recent"),] #subset to living plants
+#plantpts<-plantpts0[which(plantpts0$Status_QC=="Living" | plantpts0$Status_QC=="Recent"),] #subset to living plants
+plantpts<-plantpts0[which(plantpts0$Status_QC=="Living"),]
 #where does this living come from (field data vs. other data)?
 
 #spatial overlay of points and crowns
@@ -160,6 +162,9 @@ length(which(plantpts$Tag %in% crown_dat$Tag ==F))/length(plantpts$Tag)
 #how many crowns there should have been (tricky, since there are recruits)
 nrow(crowns2019) 
 nrow(plantpts)
+
+plot(crowns2019)
+plot(plantpts, add=TRUE, col="red", pch=20)
 
 
 library("deldir")
